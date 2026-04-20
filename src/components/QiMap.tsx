@@ -1,15 +1,23 @@
 import { useEffect, useRef } from "react";
 import L from "leaflet";
 
+type AmenityMarker = {
+  lat: number;
+  lng: number;
+  name: string;
+  category: string;
+};
+
 type Props = {
   lat: number;
   lng: number;
   facingDeg: number | null;
   buildingName: string;
   waterPoint?: { lat: number; lng: number; name: string } | null;
+  amenities?: AmenityMarker[];
 };
 
-const QiMap = ({ lat, lng, facingDeg, buildingName, waterPoint }: Props) => {
+const QiMap = ({ lat, lng, facingDeg, buildingName, waterPoint, amenities = [] }: Props) => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<L.Map | null>(null);
 
@@ -176,6 +184,17 @@ const QiMap = ({ lat, lng, facingDeg, buildingName, waterPoint }: Props) => {
       L.marker(end, { icon: arrowIcon }).addTo(map);
     }
 
+    // Amenity markers (blue)
+    amenities.forEach((a) => {
+      const icon = L.divIcon({
+        className: "",
+        html: `<div title="${a.name}" style="width:12px;height:12px;border-radius:9999px;background:hsl(210 75% 55%);border:2px solid white;box-shadow:0 2px 6px hsl(210 60% 25% / 0.5);"></div>`,
+        iconSize: [12, 12],
+        iconAnchor: [6, 6],
+      });
+      L.marker([a.lat, a.lng], { icon, title: a.name }).addTo(map);
+    });
+
     // Nearest water marker (if within visible-ish range)
     if (waterPoint) {
       const waterIcon = L.divIcon({
@@ -185,7 +204,7 @@ const QiMap = ({ lat, lng, facingDeg, buildingName, waterPoint }: Props) => {
       });
       L.marker([waterPoint.lat, waterPoint.lng], { icon: waterIcon }).addTo(map);
     }
-  }, [lat, lng, facingDeg, buildingName, waterPoint]);
+  }, [lat, lng, facingDeg, buildingName, waterPoint, amenities]);
 
   useEffect(() => {
     return () => {
