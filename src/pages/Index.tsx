@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import QiMap from "@/components/QiMap";
+import Navbar from "@/components/Navbar";
 import QiScoreRing from "@/components/QiScoreRing";
 import { lookupPostal, nearestRoadBearing } from "@/lib/api";
 import {
@@ -84,6 +85,7 @@ const Index = () => {
 
   return (
     <main className="min-h-screen">
+      <Navbar />
       {/* Header */}
       <header className="max-w-5xl mx-auto px-6 pt-12 pb-6">
         <div className="flex items-center gap-2 text-xs tracking-[0.3em] uppercase text-muted-foreground">
