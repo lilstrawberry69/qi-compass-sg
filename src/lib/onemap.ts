@@ -33,7 +33,7 @@ export const THEME_MAP: { theme: string; category: AmenityCategory }[] = [
   { theme: "chas_clinics", category: "medical" },
   { theme: "moh_hospitals", category: "medical" },
   { theme: "nationalparks", category: "greenery" },
-  { theme: "mrtstation", category: "transport" },
+  { theme: "trainstation", category: "transport" },
 ];
 
 /** Build a rough lat/lng bbox covering `radiusM` around the point. */
@@ -72,14 +72,22 @@ async function fetchTheme(
     const res = await fetch(url, {
       headers: { Authorization: `Bearer ${ONEMAP_TOKEN}` },
     });
-    if (!res.ok) return [];
+    if (!res.ok) {
+      console.warn(`[OneMap] ${theme} failed: ${res.status}`);
+      return [];
+    }
     const data = await res.json();
+    if (data?.error) {
+      console.warn(`[OneMap] ${theme} error:`, data.error);
+      return [];
+    }
     // Response shape: { SrchResults: [ {FeatCount,Theme_Name,...}, ...rows ] }
     const rows: ThemeRow[] = Array.isArray(data?.SrchResults)
       ? data.SrchResults.slice(1)
       : [];
     return rows;
-  } catch {
+  } catch (e) {
+    console.warn(`[OneMap] ${theme} exception:`, e);
     return [];
   }
 }
@@ -129,11 +137,16 @@ export async function fetchAllAmenities(
   const results = await Promise.all(tasks);
   const live = results.flat();
 
-  // Fast food (mocked per user choice) + fallback if OneMap token empty
+  // Fast food is always mocked per user choice (no reliable OneMap theme).
   const fastFood = mockFastFood(point, radiusM);
-  const fallback = live.length === 0 ? mockAmenities(point, radiusM) : [];
 
-  return [...live, ...fastFood, ...fallback];
+  if (!ONEMAP_TOKEN) {
+    console.warn(
+      "[OneMap] No token set in src/lib/onemap.ts — amenities list will be empty."
+    );
+  }
+
+  return [...live, ...fastFood];
 }
 
 /** Mock McDonald's / KFC / Burger King points within radius. */
@@ -151,38 +164,6 @@ export function mockFastFood(point: LatLng, radiusM: number): Amenity[] {
       name,
       category: "fastfood" as AmenityCategory,
       theme: "fastfood",
-      lat,
-      lng,
-      distanceM: r,
-    };
-  });
-}
-
-/** Fallback mock dataset when no token is available, so the Utility tab still works. */
-function mockAmenities(point: LatLng, radiusM: number): Amenity[] {
-  const seed: Array<[string, AmenityCategory, string, number, number]> = [
-    ["Little Bloom Kindergarten", "education", "kindergartens", 0.35, 20],
-    ["Sunshine Primary School", "education", "primary_schools", 0.7, 110],
-    ["Maxwell Food Centre", "food", "hawkercentre", 0.45, 200],
-    ["Hong Lim Market", "food", "hawkercentre", 0.6, 80],
-    ["Chinatown Hawker", "food", "hawkercentre", 0.8, 300],
-    ["Healthway Clinic", "medical", "chas_clinics", 0.4, 60],
-    ["SGH Outram", "medical", "moh_hospitals", 0.9, 150],
-    ["Pearl's Hill Park", "greenery", "nationalparks", 0.55, 250],
-    ["Outram Park MRT", "transport", "mrtstation", 0.3, 320],
-  ];
-  return seed.map(([name, category, theme, frac, bearingDeg], i) => {
-    const rad = (bearingDeg * Math.PI) / 180;
-    const r = radiusM * frac;
-    const lat = point.lat + (Math.cos(rad) * r) / 111320;
-    const lng =
-      point.lng +
-      (Math.sin(rad) * r) / (111320 * Math.cos((point.lat * Math.PI) / 180));
-    return {
-      id: `mock-${i}`,
-      name,
-      category,
-      theme,
       lat,
       lng,
       distanceM: r,
