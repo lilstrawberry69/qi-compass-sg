@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
 import QiMap from "@/components/QiMap";
+import Navbar from "@/components/Navbar";
 import UtilityPanel from "@/components/UtilityPanel";
 import { lookupPostal, nearestRoadBearing } from "@/lib/api";
 import { nearestWaterbody } from "@/lib/fengshui";
@@ -77,6 +78,7 @@ const Utilities = () => {
 
   return (
     <main className="min-h-screen">
+      <Navbar />
       <header className="max-w-5xl mx-auto px-6 pt-12 pb-6">
         <Link
           to="/"
