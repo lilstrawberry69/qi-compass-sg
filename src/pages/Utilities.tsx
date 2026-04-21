@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { Link } from "react-router-dom";
 import { z } from "zod";
 import { ArrowLeft, Compass, Loader2, MapPin, Sparkles } from "lucide-react";
@@ -13,6 +13,7 @@ import { lookupPostal, nearestRoadBearing } from "@/lib/api";
 import { nearestWaterbody } from "@/lib/fengshui";
 import { fetchAllAmenities, type Amenity } from "@/lib/onemap";
 import { computeUtility, type UtilityScore } from "@/lib/utility";
+import preloadData from "@/data/preload-018956.json";
 
 const postalSchema = z
   .string()
@@ -33,15 +34,39 @@ type UtilityResult = {
 
 const DEFAULT_POSTAL = "018956";
 
+const PRELOAD_RESULT: UtilityResult = {
+  building: preloadData.place.building,
+  address: preloadData.place.address,
+  lat: preloadData.place.lat,
+  lng: preloadData.place.lng,
+  facingDeg: preloadData.facingDeg,
+  amenities: preloadData.amenities as Amenity[],
+  score: preloadData.utilityScore as UtilityScore,
+  waterDistanceM: preloadData.water.distance,
+  waterPoint:
+    preloadData.water.distance <= 1500
+      ? {
+          lat: preloadData.water.lat,
+          lng: preloadData.water.lng,
+          name: preloadData.water.name,
+        }
+      : null,
+};
+
 const Utilities = () => {
   const [postal, setPostal] = useState(DEFAULT_POSTAL);
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<UtilityResult | null>(null);
+  const [result, setResult] = useState<UtilityResult | null>(PRELOAD_RESULT);
 
-  const runScan = useCallback(async (code: string, opts?: { silent?: boolean }) => {
+  const runScan = useCallback(async (code: string) => {
     const parsed = postalSchema.safeParse(code);
     if (!parsed.success) {
-      if (!opts?.silent) toast.error(parsed.error.issues[0].message);
+      toast.error(parsed.error.issues[0].message);
+      return;
+    }
+    // Use cached preload for the default postal — instant, no network.
+    if (parsed.data === DEFAULT_POSTAL) {
+      setResult(PRELOAD_RESULT);
       return;
     }
     setLoading(true);
@@ -71,15 +96,11 @@ const Utilities = () => {
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Scan failed";
-      if (!opts?.silent) toast.error(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
   }, []);
-
-  useEffect(() => {
-    runScan(DEFAULT_POSTAL, { silent: true });
-  }, [runScan]);
 
   const onScan = (e: React.FormEvent) => {
     e.preventDefault();
