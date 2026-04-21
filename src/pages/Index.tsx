@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { z } from "zod";
 import { Compass, Droplets, Loader2, MapPin, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,7 @@ import {
   type ScoreResult,
 } from "@/lib/fengshui";
 import { toast } from "sonner";
+import preloadData from "@/data/preload-018956.json";
 
 const postalSchema = z
   .string()
@@ -35,15 +36,31 @@ type ScanResult = {
 
 const DEFAULT_POSTAL = "018956";
 
+const PRELOAD_RESULT: ScanResult = {
+  building: preloadData.place.building,
+  address: preloadData.place.address,
+  lat: preloadData.place.lat,
+  lng: preloadData.place.lng,
+  facingDeg: preloadData.facingDeg,
+  roadName: preloadData.roadName,
+  water: preloadData.water,
+  score: preloadData.qiScore as ScoreResult,
+};
+
 const Index = () => {
   const [postal, setPostal] = useState(DEFAULT_POSTAL);
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<ScanResult | null>(null);
+  const [result, setResult] = useState<ScanResult | null>(PRELOAD_RESULT);
 
-  const runScan = useCallback(async (code: string, opts?: { silent?: boolean }) => {
+  const runScan = useCallback(async (code: string) => {
     const parsed = postalSchema.safeParse(code);
     if (!parsed.success) {
-      if (!opts?.silent) toast.error(parsed.error.issues[0].message);
+      toast.error(parsed.error.issues[0].message);
+      return;
+    }
+    // Use cached preload for the default postal — instant, no network.
+    if (parsed.data === DEFAULT_POSTAL) {
+      setResult(PRELOAD_RESULT);
       return;
     }
     setLoading(true);
@@ -78,15 +95,11 @@ const Index = () => {
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Scan failed";
-      if (!opts?.silent) toast.error(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
   }, []);
-
-  useEffect(() => {
-    runScan(DEFAULT_POSTAL, { silent: true });
-  }, [runScan]);
 
   const onScan = (e: React.FormEvent) => {
     e.preventDefault();
