@@ -216,7 +216,7 @@ const QiMap = ({ lat, lng, facingDeg, buildingName, waterPoint, amenities = [], 
       });
       L.marker([waterPoint.lat, waterPoint.lng], { icon: waterIcon }).addTo(map);
     }
-  }, [lat, lng, facingDeg, buildingName, waterPoint, amenities]);
+  }, [lat, lng, facingDeg, buildingName, waterPoint, amenities, variant, radiusM]);
 
   useEffect(() => {
     return () => {
