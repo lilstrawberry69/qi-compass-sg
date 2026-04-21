@@ -2,6 +2,7 @@
 
 import type { LatLng } from "./fengshui";
 import { bearing } from "./fengshui";
+import { ONEMAP_TOKEN } from "./onemap";
 
 export type OneMapResult = {
   lat: number;
@@ -15,9 +16,12 @@ export async function lookupPostal(postalCode: string): Promise<OneMapResult> {
   const url = `https://www.onemap.gov.sg/api/common/elastic/search?searchVal=${encodeURIComponent(
     postalCode
   )}&returnGeom=Y&getAddrDetails=Y&pageNum=1`;
-  const res = await fetch(url);
+  const res = await fetch(url, {
+    headers: ONEMAP_TOKEN ? { Authorization: `Bearer ${ONEMAP_TOKEN}` } : {},
+  });
   if (!res.ok) throw new Error(`OneMap request failed (${res.status})`);
   const data = await res.json();
+  if (data?.error) throw new Error(data.error);
   const hit = data?.results?.[0];
   if (!hit) throw new Error("No address found for that postal code.");
   return {
