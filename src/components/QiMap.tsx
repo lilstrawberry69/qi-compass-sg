@@ -15,9 +15,11 @@ type Props = {
   buildingName: string;
   waterPoint?: { lat: number; lng: number; name: string } | null;
   amenities?: AmenityMarker[];
+  variant?: "luopan" | "radius";
+  radiusM?: number;
 };
 
-const QiMap = ({ lat, lng, facingDeg, buildingName, waterPoint, amenities = [] }: Props) => {
+const QiMap = ({ lat, lng, facingDeg, buildingName, waterPoint, amenities = [], variant = "luopan", radiusM = 500 }: Props) => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<L.Map | null>(null);
 
