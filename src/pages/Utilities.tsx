@@ -170,6 +170,8 @@ const Utilities = () => {
             buildingName={result.building}
             waterPoint={result.waterPoint}
             amenities={result.amenities}
+            variant="radius"
+            radiusM={1000}
           />
 
           <UtilityPanel score={result.score} amenities={result.amenities} />
