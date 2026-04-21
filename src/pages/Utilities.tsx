@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { z } from "zod";
 import { ArrowLeft, Compass, Loader2, MapPin, Sparkles } from "lucide-react";
@@ -31,16 +31,17 @@ type UtilityResult = {
   waterPoint: { lat: number; lng: number; name: string } | null;
 };
 
+const DEFAULT_POSTAL = "018956";
+
 const Utilities = () => {
-  const [postal, setPostal] = useState("");
+  const [postal, setPostal] = useState(DEFAULT_POSTAL);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<UtilityResult | null>(null);
 
-  const onScan = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const parsed = postalSchema.safeParse(postal);
+  const runScan = useCallback(async (code: string, opts?: { silent?: boolean }) => {
+    const parsed = postalSchema.safeParse(code);
     if (!parsed.success) {
-      toast.error(parsed.error.issues[0].message);
+      if (!opts?.silent) toast.error(parsed.error.issues[0].message);
       return;
     }
     setLoading(true);
@@ -70,10 +71,19 @@ const Utilities = () => {
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Scan failed";
-      toast.error(msg);
+      if (!opts?.silent) toast.error(msg);
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  useEffect(() => {
+    runScan(DEFAULT_POSTAL, { silent: true });
+  }, [runScan]);
+
+  const onScan = (e: React.FormEvent) => {
+    e.preventDefault();
+    runScan(postal);
   };
 
   return (

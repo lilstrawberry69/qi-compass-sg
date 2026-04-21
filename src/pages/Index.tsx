@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { z } from "zod";
 import { Compass, Droplets, Loader2, MapPin, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -33,16 +33,17 @@ type ScanResult = {
   score: ScoreResult;
 };
 
+const DEFAULT_POSTAL = "018956";
+
 const Index = () => {
-  const [postal, setPostal] = useState("");
+  const [postal, setPostal] = useState(DEFAULT_POSTAL);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ScanResult | null>(null);
 
-  const onScan = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const parsed = postalSchema.safeParse(postal);
+  const runScan = useCallback(async (code: string, opts?: { silent?: boolean }) => {
+    const parsed = postalSchema.safeParse(code);
     if (!parsed.success) {
-      toast.error(parsed.error.issues[0].message);
+      if (!opts?.silent) toast.error(parsed.error.issues[0].message);
       return;
     }
     setLoading(true);
@@ -77,10 +78,19 @@ const Index = () => {
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Scan failed";
-      toast.error(msg);
+      if (!opts?.silent) toast.error(msg);
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  useEffect(() => {
+    runScan(DEFAULT_POSTAL, { silent: true });
+  }, [runScan]);
+
+  const onScan = (e: React.FormEvent) => {
+    e.preventDefault();
+    runScan(postal);
   };
 
   return (
