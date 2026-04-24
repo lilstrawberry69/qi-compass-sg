@@ -10,7 +10,7 @@
 //   - Places API
 //   - Geocoding API
 
-export const GOOGLE_MAPS_API_KEY = ""; // <-- paste your Google Maps Platform key here
+export const GOOGLE_MAPS_API_KEY = "AIzaSyAzzpVF-MfHGlCj2-UZhKllGtsivtCXuvU";
 
 // Libraries the app needs loaded with the Maps script.
 export const GOOGLE_MAPS_LIBRARIES = ["places", "geometry"] as const;
