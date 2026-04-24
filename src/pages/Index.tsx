@@ -96,7 +96,7 @@ const Index = () => {
   // Hydrate from preload cache on mount; fall back to a silent live scan.
   useEffect(() => {
     const cached = readPreload();
-    if (cached) {
+    if (cached && cached.qiScore && Array.isArray(cached.qiScore.notes)) {
       setResult({
         building: cached.place.building,
         address: cached.place.address,
