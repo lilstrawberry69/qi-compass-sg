@@ -18,7 +18,7 @@ import {
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import type { Amenity, AmenityCategory } from "@/lib/onemap";
+import type { Amenity, AmenityCategory } from "@/lib/places";
 import type { UtilityScore } from "@/lib/utility";
 
 const CATEGORY_META: Record<
@@ -26,11 +26,11 @@ const CATEGORY_META: Record<
   { label: string; icon: React.ComponentType<{ className?: string }> }
 > = {
   education: { label: "Education", icon: GraduationCap },
-  food: { label: "Hawker Centres", icon: UtensilsCrossed },
-  medical: { label: "Medical", icon: Stethoscope },
-  greenery: { label: "Greenery", icon: Trees },
-  transport: { label: "Transport", icon: TrainFront },
+  food: { label: "Restaurants", icon: UtensilsCrossed },
   fastfood: { label: "Fast Food", icon: Beef },
+  medical: { label: "Medical", icon: Stethoscope },
+  greenery: { label: "Parks", icon: Trees },
+  transport: { label: "Transport", icon: TrainFront },
 };
 
 type Props = {
