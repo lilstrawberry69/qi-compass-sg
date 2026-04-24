@@ -1,5 +1,6 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { motion } from "framer-motion";
 import { z } from "zod";
 import { ArrowLeft, Compass, Loader2, MapPin, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -9,11 +10,12 @@ import { toast } from "sonner";
 import QiMap from "@/components/QiMap";
 import Navbar from "@/components/Navbar";
 import UtilityPanel from "@/components/UtilityPanel";
-import { lookupPostal, nearestRoadBearing } from "@/lib/api";
+import { geocodePostal, nearestRoadBearing, fetchAllAmenities, type Amenity } from "@/lib/places";
 import { nearestWaterbody } from "@/lib/fengshui";
-import { fetchAllAmenities, type Amenity } from "@/lib/onemap";
 import { computeUtility, type UtilityScore } from "@/lib/utility";
-import preloadData from "@/data/preload-018956.json";
+import { GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_LIBRARIES } from "@/lib/google";
+import { APIProvider, useApiIsLoaded } from "@vis.gl/react-google-maps";
+import { DEFAULT_POSTAL, readPreload, writePreload } from "@/lib/preload";
 
 const postalSchema = z
   .string()
@@ -32,75 +34,108 @@ type UtilityResult = {
   waterPoint: { lat: number; lng: number; name: string } | null;
 };
 
-const DEFAULT_POSTAL = "018956";
-
-const PRELOAD_RESULT: UtilityResult = {
-  building: preloadData.place.building,
-  address: preloadData.place.address,
-  lat: preloadData.place.lat,
-  lng: preloadData.place.lng,
-  facingDeg: preloadData.facingDeg,
-  amenities: preloadData.amenities as Amenity[],
-  score: preloadData.utilityScore as UtilityScore,
-  waterDistanceM: preloadData.water.distance,
-  waterPoint:
-    preloadData.water.distance <= 1500
-      ? {
-          lat: preloadData.water.lat,
-          lng: preloadData.water.lng,
-          name: preloadData.water.name,
-        }
-      : null,
-};
-
-const Utilities = () => {
+const UtilitiesInner = () => {
   const [postal, setPostal] = useState(DEFAULT_POSTAL);
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<UtilityResult | null>(PRELOAD_RESULT);
+  const [result, setResult] = useState<UtilityResult | null>(null);
+  const apiLoaded = useApiIsLoaded();
 
-  const runScan = useCallback(async (code: string) => {
-    const parsed = postalSchema.safeParse(code);
-    if (!parsed.success) {
-      toast.error(parsed.error.issues[0].message);
-      return;
-    }
-    // Use cached preload for the default postal — instant, no network.
-    if (parsed.data === DEFAULT_POSTAL) {
-      setResult(PRELOAD_RESULT);
-      return;
-    }
-    setLoading(true);
-    setResult(null);
-    try {
-      const place = await lookupPostal(parsed.data);
-      const point = { lat: place.lat, lng: place.lng };
-      const water = nearestWaterbody(point);
-      const [{ deg }, amenities] = await Promise.all([
-        nearestRoadBearing(point).catch(() => ({ deg: null, roadName: null })),
-        fetchAllAmenities(point, 1000),
-      ]);
-      const score = computeUtility({ amenities, waterDistanceM: water.distance });
+  const runScan = useCallback(
+    async (code: string, opts: { silent?: boolean } = {}) => {
+      const parsed = postalSchema.safeParse(code);
+      if (!parsed.success) {
+        if (!opts.silent) toast.error(parsed.error.issues[0].message);
+        return;
+      }
+      if (!GOOGLE_MAPS_API_KEY) {
+        if (!opts.silent)
+          toast.error("Google Maps API key not set in src/lib/google.ts");
+        return;
+      }
+      setLoading(true);
+      try {
+        const place = await geocodePostal(parsed.data);
+        const point = { lat: place.lat, lng: place.lng };
+        const water = nearestWaterbody(point);
+        const [{ deg }, amenities] = await Promise.all([
+          nearestRoadBearing(point).catch(() => ({ deg: null, roadName: null })),
+          fetchAllAmenities(point, 1000),
+        ]);
+        const score = computeUtility({ amenities, waterDistanceM: water.distance });
+        const next: UtilityResult = {
+          building: place.building,
+          address: place.address,
+          lat: place.lat,
+          lng: place.lng,
+          facingDeg: deg,
+          amenities,
+          score,
+          waterDistanceM: water.distance,
+          waterPoint:
+            water.distance <= 1500
+              ? { lat: water.water.lat, lng: water.water.lng, name: water.water.name }
+              : null,
+        };
+        setResult(next);
+        return next;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Scan failed";
+        if (!opts.silent) toast.error(msg);
+      } finally {
+        setLoading(false);
+      }
+    },
+    []
+  );
+
+  // Hydrate from preload cache; otherwise wait for the maps script and run a silent scan.
+  useEffect(() => {
+    const cached = readPreload();
+    if (cached && cached.amenities && cached.amenities.length > 0) {
       setResult({
-        building: place.building,
-        address: place.address,
-        lat: place.lat,
-        lng: place.lng,
-        facingDeg: deg,
-        amenities,
-        score,
-        waterDistanceM: water.distance,
+        building: cached.place.building,
+        address: cached.place.address,
+        lat: cached.place.lat,
+        lng: cached.place.lng,
+        facingDeg: cached.facingDeg,
+        amenities: cached.amenities,
+        score: cached.utilityScore,
+        waterDistanceM: cached.water.distance,
         waterPoint:
-          water.distance <= 1500
-            ? { lat: water.water.lat, lng: water.water.lng, name: water.water.name }
+          cached.water.distance <= 1500
+            ? { lat: cached.water.lat, lng: cached.water.lng, name: cached.water.name }
             : null,
       });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Scan failed";
-      toast.error(msg);
-    } finally {
-      setLoading(false);
+      return;
     }
-  }, []);
+    if (!apiLoaded) return; // wait for Google script (fetchAllAmenities needs it)
+    (async () => {
+      const next = await runScan(DEFAULT_POSTAL, { silent: true });
+      if (!next) return;
+      const existing = readPreload();
+      writePreload({
+        place: {
+          building: next.building,
+          address: next.address,
+          lat: next.lat,
+          lng: next.lng,
+        },
+        facingDeg: next.facingDeg,
+        roadName: existing?.roadName ?? null,
+        water: {
+          name: next.waterPoint?.name ?? existing?.water.name ?? "",
+          distance: next.waterDistanceM,
+          lat: next.waterPoint?.lat ?? existing?.water.lat ?? 0,
+          lng: next.waterPoint?.lng ?? existing?.water.lng ?? 0,
+          kind: existing?.water.kind ?? "",
+        },
+        qiScore: existing?.qiScore ?? ({} as never),
+        amenities: next.amenities,
+        utilityScore: next.score,
+        generatedAt: new Date().toISOString(),
+      });
+    })();
+  }, [apiLoaded, runScan]);
 
   const onScan = (e: React.FormEvent) => {
     e.preventDefault();
@@ -108,7 +143,12 @@ const Utilities = () => {
   };
 
   return (
-    <main className="min-h-screen">
+    <motion.main
+      className="min-h-screen"
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+    >
       <Navbar />
       <header className="max-w-5xl mx-auto px-6 pt-12 pb-6">
         <Link
@@ -126,7 +166,7 @@ const Utilities = () => {
           Urban <em className="text-primary not-italic">Utility</em>
         </h1>
         <p className="mt-3 text-muted-foreground max-w-xl">
-          Convenience score from MRT, schools, hawker centres, parks, and clinics within 1 km —
+          Convenience score from MRT, schools, food, parks, and clinics within 1 km —
           cross-referenced with Water Qi for a balanced reading.
         </p>
       </header>
@@ -176,7 +216,13 @@ const Utilities = () => {
       </section>
 
       {result && (
-        <section className="max-w-5xl mx-auto px-6 mt-8 pb-20 animate-fade-up space-y-6">
+        <motion.section
+          key={`${result.lat}-${result.lng}`}
+          className="max-w-5xl mx-auto px-6 mt-8 pb-20 space-y-6"
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+        >
           <Card className="p-5 shadow-soft border-border/60 bg-card/80 backdrop-blur">
             <div className="flex flex-wrap items-baseline justify-between gap-3">
               <div>
@@ -206,14 +252,20 @@ const Utilities = () => {
           />
 
           <UtilityPanel score={result.score} amenities={result.amenities} />
-        </section>
+        </motion.section>
       )}
 
       <footer className="max-w-5xl mx-auto px-6 pb-10 text-xs text-muted-foreground/80">
-        Data: OneMap Singapore · OpenStreetMap. Fast food points are illustrative.
+        Data: Google Maps Platform (Geocoding · Places).
       </footer>
-    </main>
+    </motion.main>
   );
 };
+
+const Utilities = () => (
+  <APIProvider apiKey={GOOGLE_MAPS_API_KEY} libraries={[...GOOGLE_MAPS_LIBRARIES]}>
+    <UtilitiesInner />
+  </APIProvider>
+);
 
 export default Utilities;
