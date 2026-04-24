@@ -300,7 +300,7 @@ const Index = () => {
                     Reading
                   </div>
                   <ul className="space-y-2 text-sm">
-                    {result.score.notes.map((n, i) => (
+                    {(result.score.notes ?? []).map((n, i) => (
                       <li key={i} className="flex gap-3">
                         <span className="mt-2 w-1 h-1 rounded-full bg-primary shrink-0" />
                         <span className="text-foreground/80">{n}</span>
