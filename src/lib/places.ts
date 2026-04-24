@@ -1,3 +1,4 @@
+/// <reference types="google.maps" />
 // Google Maps API helpers — Geocoding, Nearby Places, nearest road bearing.
 //
 // All calls require the Maps JS script to be loaded with libraries=places,geometry.

@@ -1,3 +1,4 @@
+/// <reference types="google.maps" />
 // Google Maps Platform configuration.
 // Per user's choice (frontend, restricted by HTTP referrer), the key is stored in code.
 // IMPORTANT: in Google Cloud Console, restrict this key by HTTP referrer to your
