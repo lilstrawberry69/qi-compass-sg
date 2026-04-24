@@ -252,16 +252,6 @@ const LuopanOverlay = ({
 
 const QiMap = (props: Props) => {
   const [manualRotation, setManualRotation] = useState(0);
-  const mapOptions = useMemo<google.maps.MapOptions>(
-    () => ({
-      disableDefaultUI: true,
-      zoomControl: false,
-      gestureHandling: "greedy",
-      styles: ZEN_SILVER_MAP_STYLE,
-      mapTypeId: "roadmap",
-    }),
-    []
-  );
 
   if (!GOOGLE_MAPS_API_KEY) {
     return (
@@ -288,7 +278,9 @@ const QiMap = (props: Props) => {
             mapId="qiscan-zen"
             defaultCenter={{ lat: props.lat, lng: props.lng }}
             defaultZoom={zoom}
-            {...mapOptions}
+            disableDefaultUI
+            gestureHandling="greedy"
+            styles={ZEN_SILVER_MAP_STYLE}
           >
             <MapContent {...props} manualRotation={manualRotation} />
           </Map>
