@@ -1,10 +1,13 @@
-// Singapore Feng Shui scoring helpers
+// Singapore Feng Shui scoring helpers (Google Edition).
+//
+// Period 9 (2024–2043) Wealth Auspicious facing: South sector 150°–210°.
+// We keep the local waterbodies.json-style list for proximity since Google
+// Places doesn't reliably enumerate "reservoir" centroids in SG.
 
 export type LatLng = { lat: number; lng: number };
 
 export type Waterbody = { name: string; lat: number; lng: number; kind: string };
 
-// Curated list of major Singapore water bodies (approximate centroids)
 export const SG_WATERBODIES: Waterbody[] = [
   { name: "Marina Reservoir", lat: 1.2897, lng: 103.8632, kind: "Reservoir" },
   { name: "Marina Bay", lat: 1.2830, lng: 103.8607, kind: "Bay" },
@@ -30,7 +33,7 @@ export const SG_WATERBODIES: Waterbody[] = [
   { name: "Bukit Timah Canal", lat: 1.3300, lng: 103.7900, kind: "Canal" },
 ];
 
-const R = 6371000; // earth radius in meters
+const R = 6371000;
 
 export function haversine(a: LatLng, b: LatLng): number {
   const toRad = (d: number) => (d * Math.PI) / 180;
@@ -57,7 +60,6 @@ export function nearestWaterbody(point: LatLng) {
   return { water: best, distance: bestDist };
 }
 
-// Bearing from a -> b in degrees (0..360, 0 = North)
 export function bearing(a: LatLng, b: LatLng): number {
   const toRad = (d: number) => (d * Math.PI) / 180;
   const toDeg = (r: number) => (r * 180) / Math.PI;
@@ -79,6 +81,12 @@ export function compass16(deg: number): string {
   return dirs[Math.round(deg / 22.5) % 16];
 }
 
+// Period 9 South sector per master prompt: 150° – 210°.
+export function isPeriod9Auspicious(deg: number | null): boolean {
+  if (deg == null) return false;
+  return deg >= 150 && deg <= 210;
+}
+
 export type ScoreInput = {
   waterDistanceM: number;
   facingDeg: number | null;
@@ -98,18 +106,16 @@ export type ScoreResult = {
 
 export function computeQiScore({ waterDistanceM, facingDeg, hasRoad }: ScoreInput): ScoreResult {
   const notes: string[] = [];
-
-  // Base "house exists" Qi
   const basePoints = 50;
 
-  // Water proximity: full +20 within 500m, taper to 0 at 1500m
   let waterPoints = 0;
   if (waterDistanceM <= 500) waterPoints = 20;
-  else if (waterDistanceM <= 1500) waterPoints = Math.round((1 - (waterDistanceM - 500) / 1000) * 20);
-  if (waterPoints > 0) notes.push(`Water element ${Math.round(waterDistanceM)}m away (+${waterPoints})`);
+  else if (waterDistanceM <= 1500)
+    waterPoints = Math.round((1 - (waterDistanceM - 500) / 1000) * 20);
+  if (waterPoints > 0)
+    notes.push(`Water element ${Math.round(waterDistanceM)}m away (+${waterPoints})`);
   else notes.push(`No major water within 1.5km`);
 
-  // Period 9 facing logic — South 165–195° = Wealth Auspicious
   let facingPoints = 0;
   let facingLabel = "Unknown facing";
   let facingClass: ScoreResult["facingClass"] = "neutral";
@@ -119,12 +125,12 @@ export function computeQiScore({ waterDistanceM, facingDeg, hasRoad }: ScoreInpu
     notes.push("No nearby road found to infer facing");
   } else {
     const d = facingDeg;
-    if (d >= 165 && d <= 195) {
+    if (isPeriod9Auspicious(d)) {
       facingPoints = 30;
-      facingLabel = "South — Wealth Auspicious";
+      facingLabel = "South — Auspicious for Period 9";
       facingClass = "wealth";
       notes.push(`Period 9 South facing (${Math.round(d)}°) (+30)`);
-    } else if ((d >= 135 && d < 165) || (d > 195 && d <= 225)) {
+    } else if ((d >= 120 && d < 150) || (d > 210 && d <= 240)) {
       facingPoints = 18;
       facingLabel = "Near-South — Supportive";
       facingClass = "support";

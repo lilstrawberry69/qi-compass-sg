@@ -1,6 +1,13 @@
-// Urban Utility scoring engine — cross-references water Qi with greenery.
+// Urban Utility scoring engine — Google Edition.
+//
+// Convenience Score (0-100):
+//   +25  Transit Station (subway_station) within 500m
+//   +20  School within 1km
+//   +15  >3 Food options within 500m
+//   +15  Park within 800m
+//   base 25 (just for being in a populated area)
 
-import type { Amenity } from "./onemap";
+import type { Amenity } from "./places";
 
 export type UtilityScore = {
   score: number; // 0-100
@@ -17,56 +24,56 @@ export type UtilityScore = {
 
 export type UtilityInput = {
   amenities: Amenity[];
-  waterDistanceM: number; // from the Feng Shui water check
+  waterDistanceM: number;
 };
 
 export function computeUtility({ amenities, waterDistanceM }: UtilityInput): UtilityScore {
   const notes: string[] = [];
-  const base = 30;
+  const base = 25;
 
-  // MRT / Transport — +25 if any station within 500m
-  const transportNear = amenities
+  // +25 for a transit (subway) station within 500m
+  const transit = amenities
     .filter((a) => a.category === "transport")
     .sort((a, b) => a.distanceM - b.distanceM)[0];
   let transport = 0;
-  if (transportNear && transportNear.distanceM <= 500) {
+  if (transit && transit.distanceM <= 500) {
     transport = 25;
-    notes.push(`MRT ${transportNear.name} within ${Math.round(transportNear.distanceM)}m (+25)`);
-  } else if (transportNear) {
-    notes.push(`Nearest MRT ${transportNear.name} — ${Math.round(transportNear.distanceM)}m (no bonus)`);
+    notes.push(`MRT ${transit.name} within ${Math.round(transit.distanceM)}m (+25)`);
+  } else if (transit) {
+    notes.push(`Nearest MRT ${transit.name} — ${Math.round(transit.distanceM)}m (no bonus)`);
   }
 
-  // Education — +20 if a primary school within 1km
-  const primary = amenities.find(
-    (a) => a.theme === "primary_schools" && a.distanceM <= 1000
+  // +20 for a school within 1km
+  const school = amenities
+    .filter((a) => a.category === "education")
+    .sort((a, b) => a.distanceM - b.distanceM)[0];
+  const education = school && school.distanceM <= 1000 ? 20 : 0;
+  if (education) notes.push(`${school!.name} within 1km (+20)`);
+
+  // +15 for >3 food options within 500m (food + fastfood combined)
+  const foodNear = amenities.filter(
+    (a) => (a.category === "food" || a.category === "fastfood") && a.distanceM <= 500
   );
-  const education = primary ? 20 : 0;
-  if (primary) notes.push(`Primary school ${primary.name} within 1km (+20)`);
+  const food = foodNear.length > 3 ? 15 : 0;
+  if (food) notes.push(`${foodNear.length} food options within 500m (+15)`);
 
-  // Food — +15 if >2 hawker centres found
-  const hawkers = amenities.filter((a) => a.theme === "hawkercentre");
-  const food = hawkers.length > 2 ? 15 : Math.min(hawkers.length * 5, 10);
-  if (hawkers.length > 2) notes.push(`${hawkers.length} hawker centres nearby (+15)`);
-
-  // Greenery — +10 if a national park within 800m. Cross-reference water Qi.
+  // +15 for a park within 800m
   const park = amenities
     .filter((a) => a.category === "greenery")
     .sort((a, b) => a.distanceM - b.distanceM)[0];
-  let greenery = 0;
-  if (park && park.distanceM <= 800) {
-    greenery = 10;
-    notes.push(`${park.name} within 800m (+10)`);
-  }
-  // Water Qi cross-reference: within 500m of water counts as a +5 "blue-green" bonus.
+  const greenery = park && park.distanceM <= 800 ? 15 : 0;
+  if (greenery) notes.push(`${park!.name} within 800m (+15)`);
+
+  // Cross-reference with water Qi (small bonus)
   let bonus = 0;
   if (waterDistanceM <= 500) {
     bonus += 5;
     notes.push(`Water Qi within 500m reinforces greenery (+5)`);
   }
 
-  // Yin conflict — within 200m of hospital (proxy for cemetery)
+  // Yin conflict — within 200m of hospital (informational, no bonus to score)
   const hospitalNear = amenities.find(
-    (a) => a.theme === "moh_hospitals" && a.distanceM <= 200
+    (a) => a.category === "medical" && a.distanceM <= 200
   );
   const yinConflict = {
     present: Boolean(hospitalNear),
@@ -74,10 +81,6 @@ export function computeUtility({ amenities, waterDistanceM }: UtilityInput): Uti
       ? `${hospitalNear.name} within ${Math.round(hospitalNear.distanceM)}m`
       : null,
   };
-  if (hospitalNear) {
-    bonus += 5;
-    notes.push(`High medical accessibility (+5) — hospital within 200m`);
-  }
 
   const score = Math.min(100, base + transport + education + food + greenery + bonus);
 
@@ -85,9 +88,9 @@ export function computeUtility({ amenities, waterDistanceM }: UtilityInput): Uti
     { subject: "Transport", value: transport, fullMark: 25 },
     { subject: "Education", value: education, fullMark: 20 },
     { subject: "Food", value: food, fullMark: 15 },
+    { subject: "Greenery", value: greenery, fullMark: 15 },
     { subject: "Medical", value: hospitalNear ? 10 : 0, fullMark: 10 },
-    { subject: "Greenery", value: greenery, fullMark: 10 },
-    { subject: "Fast Food", value: amenities.filter((a) => a.category === "fastfood").length > 0 ? 5 : 0, fullMark: 5 },
+    { subject: "Water", value: waterDistanceM <= 500 ? 5 : 0, fullMark: 5 },
   ];
 
   return {
